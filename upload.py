@@ -36,6 +36,18 @@ def upload(files, connection_string, container_name):
             blob_client.upload_blob(data)
             print(f'{file.name} uploaded to blob storage.')
 
+#copy files from a storage account container to another
+def copy_files(destinatinAccountKey, destinationAccountname, destinationContainer, sourceAccountKey, sourceAccountname, sourceContainer):
+    print('copying blobs...')
+    response = az_cli(f"storage blob copy start-batch \
+    --account-key {destinatinAccountKey} \
+    --account-name {destinationAccountname} \
+    --destination-container {destinationContainer} \
+    --source-account-key {sourceAccountKey} \
+    --source-account-name {sourceAccountname} \
+    --source-container {sourceContainer}")
+    print("done copying.")
+    return response
 
 # invoke az CLI 
 def az_cli (args_str):
@@ -49,20 +61,11 @@ def az_cli (args_str):
     return True
 
 
-
-
 config = load_config()
-"""
 create_files(config["source_folder"], 100)
 files = get_files(config["source_folder"])
-upload(files, config["azure_storage1_connectionstring"], config["storage_container_name"])
-"""
+upload(files, config["azure_storage1_connectionstring"], config["storage1_container_name"])
+copy_files(config['storage2_account_key'], config['azure_storage2_name'], config['storage2_container_name'], config['storage1_account_key'], config['azure_storage1_name'], config['storage1_container_name'])
 
-response = az_cli(f"storage blob copy start-batch \
-    --account-key {config['storage2_account_key']} \
-    --account-name {config['azure_storage2_name']} \
-    --destination-container {config['storage2_container_name']} \
-    --source-account-key {config['storage1_account_key']} \
-    --source-account-name {config['azure_storage1_name']} \
-    --source-container {config['storage1_container_name']}")
-print("vm's: %s" % (response))
+
+
