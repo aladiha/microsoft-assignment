@@ -62,10 +62,10 @@ def az_cli (args_str):
 
 
 config = load_config()
-#create_files(config["source_folder"], 100)
+create_files(config["source_folder"], 100)
 files = get_files(config["source_folder2"])
 upload(files, config["constring"], config["container"])
-#copy_files(config['storage2_account_key'], config['azure_storage2_name'], config['storage2_container_name'], config['storage1_account_key'], config['azure_storage1_name'], config['storage1_container_name'])
+copy_files(config['storage2_account_key'], config['azure_storage2_name'], config['storage2_container_name'], config['storage1_account_key'], config['azure_storage1_name'], config['storage1_container_name'])
 
 
 
