@@ -1,4 +1,3 @@
-
 #connect to account
 Connect-AzAccount -UseDeviceAuthentication
 
@@ -6,31 +5,40 @@ Connect-AzAccount -UseDeviceAuthentication
 $location = "eastus" 
 
 #create resource group
-$resourceGroup = "aladinResGroup2"
+$resourceGroup = "aladinHandoRes3"
+$storageAcc1 = "aladinsourcestorage12345"
+$storageAcc2 = "aladindeststorage12345"
+$VmStorageAcc = "aladinbootdiagnostic"
 
+#get azureuser admin name
+[string]$path = Get-Location
+$pathArray = $path.Split("/")
+$azureuser = $pathArray[2]
+
+#create azure resource group
 New-AzResourceGroup -Name $resourceGroup -Location $location
 
 #create storage accounts
 New-AzStorageAccount -ResourceGroupName $resourceGroup `
-    -Name "aladinsourcestorage12" `
+    -Name $storageAcc1 `
     -Location $location `
     -SkuName Standard_RAGRS `
     -Kind StorageV2
 
 New-AzStorageAccount -ResourceGroupName $resourceGroup `
-    -Name "aladindeststorage12" `
+    -Name $storageAcc2 `
     -Location $location `
     -SkuName Standard_RAGRS `
     -Kind StorageV2
 
 #create storage account for vm config
 New-AzStorageAccount -ResourceGroupName $resourceGroup `
-    -Name "aladinsourcestorage123" `
+    -Name $VmStorageAcc `
     -Location $location `
     -SkuName Standard_RAGRS `
     -Kind StorageV2
 
-
+#Generating public/private rsa key pair
 ssh-keygen -t rsa -b 4096
 
 # Create a subnet configuration
@@ -54,12 +62,37 @@ $pip = New-AzPublicIpAddress `
   -IdleTimeoutInMinutes 4 `
   -Name "mypublicdns$(Get-Random)"
 
+# Create an inbound network security group rule for port 22
+$nsgRuleSSH = New-AzNetworkSecurityRuleConfig `
+  -Name "myNetworkSecurityGroupRuleSSH"  `
+  -Protocol "Tcp" `
+  -Direction "Inbound" `
+  -Priority 1000 `
+  -SourceAddressPrefix * `
+  -SourcePortRange * `
+  -DestinationAddressPrefix * `
+  -DestinationPortRange 22 `
+  -Access "Allow"
+
+# Create an inbound network security group rule for port 80
+$nsgRuleWeb = New-AzNetworkSecurityRuleConfig `
+  -Name "myNetworkSecurityGroupRuleWWW"  `
+  -Protocol "Tcp" `
+  -Direction "Inbound" `
+  -Priority 1001 `
+  -SourceAddressPrefix * `
+  -SourcePortRange * `
+  -DestinationAddressPrefix * `
+  -DestinationPortRange 80 `
+  -Access "Allow"
+
 
 # Create a network security group
 $nsg = New-AzNetworkSecurityGroup `
   -ResourceGroupName $resourceGroup `
   -Location $location `
   -Name "myNetworkSecurityGroup" `
+  -SecurityRules $nsgRuleSSH,$nsgRuleWeb
 
 # Create a virtual network card and associate with public IP address and NSG
 $nic = New-AzNetworkInterface `
@@ -71,20 +104,20 @@ $nic = New-AzNetworkInterface `
   -NetworkSecurityGroupId $nsg.Id
 
 # Define a credential object
-$securePassword = ConvertTo-SecureString 'aaa9876123*' -AsPlainText -Force
-$cred = New-Object System.Management.Automation.PSCredential ("azureuser", $securePassword)
+$securePassword = ConvertTo-SecureString ' ' -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential ($azureuser, $securePassword)
 
 # Create a virtual machine configuration
 $vmConfig = New-AzVMConfig `
   -VMName "myVM" `
-  -VMSize "Standard_B1ls" | `
+  -VMSize "Standard_DS1_v2" | `
 Set-AzVMOperatingSystem `
   -Linux `
   -ComputerName "myVM" `
   -Credential $cred `
   -DisablePasswordAuthentication | `
 Set-AzVMSourceImage `
-  -PublisherName "Aladin" `
+  -PublisherName "Canonical" `
   -Offer "UbuntuServer" `
   -Skus "18.04-LTS" `
   -Version "latest" | `
@@ -92,54 +125,22 @@ Add-AzVMNetworkInterface `
   -Id $nic.Id
 
 #save vm configurations in storage account
-Set-AzVMBootDiagnostic -VM $vmConfig -Enable -ResourceGroupName $resourceGroup -StorageAccountName "aladinsourcestorage123"
+Set-AzVMBootDiagnostic -VM $vmConfig -Enable -ResourceGroupName $resourceGroup -StorageAccountName $VmStorageAcc
 
 # Configure the SSH key
 $sshPublicKey = cat ~/.ssh/id_rsa.pub
 Add-AzVMSshPublicKey `
   -VM $vmconfig `
   -KeyData $sshPublicKey `
-  -Path "/Users/aladinhandoklo/.ssh/authorized_keys"
-
-
-Get-AzPublicIpAddress -ResourceGroupName $resourceGroup | Select "IpAddress"
+  -Path "/home/$azureuser/.ssh/authorized_keys"
 
 #create VM
 New-AzVM `
   -ResourceGroupName $resourceGroup `
   -Location eastus -VM $vmConfig
 
+Get-AzPublicIpAddress -ResourceGroupName $resourceGroup | Select "IpAddress"
 
-#get storage accountes
-$storageAccount = Get-AzStorageAccount -ResourceGroupName "myResourceGroup" -Name "aladinsourcestorage12"
-$storageAccountb = Get-AzStorageAccount -ResourceGroupName "myResourceGroup" -Name "aladindeststorage12"
-$ctx = $storageAccount.Context
-$ctxb = $storageAccountb.Context
 
-#create containers
-$containerName = "mybolbs"
-New-AzStorageContainer -Name $containerName -Context $ctx -Permission blob
-$containerNameB = "mybolbs"
-New-AzStorageContainer -Name $containerNameB -Context $ctxb -Permission blob
 
-# create files in VM machine
-for ($num = 1 ; $num -le 100 ; $num++){
-    [string]$index = $num.ToString()
-    New-Item "\home\azureuser\files\$index.txt"
-    Set-Content "\home\azureuser\files\$index.txt" "file number $index"
-}
-
-#upload files to azure sorage account
-for ($num = 1 ; $num -le 100 ; $num++){
-  [string]$index = $num.ToString()
-  Set-AzStorageBlobContent -File "/home/azureuser/files/$index.txt" `
-    -Container $containerName `
-    -Blob "blob$index.txt" `
-    -Context $ctx 
-}
-
-#copy files from one storage to another
-Get-AzStorageBlob -Context $ctx `
--Container $containerName | Start-AzStorageBlobCopy -DestContext $ctxb `
--DestContainer $containerNameB
 
