@@ -1,3 +1,4 @@
+#incstall azure powershell mudel
 Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force
 
 #connect to account
@@ -29,17 +30,17 @@ $ctxb = $destAccount.Context
 New-AzStorageContainer -Name $sourceContainer -Context $ctx -Permission blob
 New-AzStorageContainer -Name $destContainer -Context $ctxb -Permission blob
 
+#create directory locally
 new-item \home\aladin_hando\files -itemtype directory
 
-
-# create files in VM machine
+#create in the local directory
 for ($num = 1 ; $num -le 100 ; $num++){
     [string]$index = $num.ToString()
     New-Item "\home\aladin_hando\files\$index.txt"
     Set-Content "\home\$azureuser\files\$index.txt" "file number $index"
 }
 
-#upload files to azure sorage account
+#upload files to azure storage account
 for ($num = 1 ; $num -le 100 ; $num++){
   [string]$index = $num.ToString()
   Set-AzStorageBlobContent -File "/home/$azureuser/files/$index.txt" `

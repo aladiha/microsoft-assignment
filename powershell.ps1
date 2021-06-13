@@ -139,6 +139,7 @@ New-AzVM `
   -ResourceGroupName $resourceGroup `
   -Location eastus -VM $vmConfig
 
+#get public ip for vm connection 
 Get-AzPublicIpAddress -ResourceGroupName $resourceGroup | Select "IpAddress"
 
 
